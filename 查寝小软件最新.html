@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>寝室查寝系统</title>
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --danger-color: #e74c3c;
+            --success-color: #2ecc71;
+            --bg-color: #f5f7fa;
+            --card-bg: #ffffff;
+            --text-color: #333;
+            --border-radius: 8px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg-color); color: var(--text-color); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* 通用组件 */
+        .btn { border: none; padding: 12px 20px; border-radius: var(--border-radius); font-size: 16px; cursor: pointer; transition: opacity 0.2s; display: inline-flex; align-items: center; justify-content: center; }
+        .btn:active { opacity: 0.7; }
+        .btn-primary { background: var(--primary-color); color: white; }
+        .btn-danger { background: var(--danger-color); color: white; }
+        .btn-success { background: var(--success-color); color: white; }
+        .btn-outline { background: transparent; border: 1px solid #ccc; color: #666; }
+        .btn-sm { padding: 8px 12px; font-size: 14px; }
+        
+        /* 页面容器 */
+        .page { display: none; flex-direction: column; height: 100%; width: 100%; position: absolute; top: 0; left: 0; background: var(--bg-color); z-index: 1; }
+        .page.active { display: flex; z-index: 10; }
+
+        /* 头部导航 */
+        .header { padding: 15px; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+        .header h2 { font-size: 18px; flex: 1; text-align: center; }
+        .back-btn { font-size: 24px; padding: 0 10px; cursor: pointer; min-width: 40px;}
+
+        /* 首页 */
+        #home-page { justify-content: center; align-items: center; gap: 30px; padding: 20px; }
+        .home-btn { width: 80%; max-width: 300px; height: 80px; font-size: 24px; font-weight: bold; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+
+        /* 内容滚动区 */
+        .content { flex: 1; overflow-y: auto; padding: 15px; -webkit-overflow-scrolling: touch; }
+
+        /* 编辑页样式 */
+        .edit-section { background: white; padding: 15px; border-radius: var(--border-radius); margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .edit-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
+        .edit-row input, .edit-row select { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; }
+        .tag-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+        .tag { background: #eee; padding: 6px 12px; border-radius: 20px; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+        .tag .del-icon { color: var(--danger-color); font-weight: bold; cursor: pointer; font-size: 16px; margin-left: 4px;}
+        .save-bar { padding: 15px; background: white; border-top: 1px solid #eee; flex-shrink: 0; }
+
+        /* 🔍 新增：查询结果展示区 */
+        .query-result { 
+            margin-top: 10px; 
+            padding: 12px; 
+            background: #f8f9fa; 
+            border: 1px dashed #d0d7de; 
+            border-radius: 6px; 
+            display: none; 
+        }
+        .query-result.show { display: block; }
+        .query-title { font-size: 12px; color: #888; margin-bottom: 8px; }
+        .query-items { display: flex; flex-wrap: wrap; gap: 6px; }
+        .query-item { 
+            background: white; 
+            border: 1px solid #e1e8ed; 
+            padding: 4px 10px; 
+            border-radius: 14px; 
+            font-size: 13px; 
+            color: #444;
+            line-height: 1.4;
+        }
+        .query-empty { font-size: 13px; color: #aaa; font-style: italic; }
+
+        /* 工作页样式 */
+        .work-top { padding: 15px; background: white; border-bottom: 1px solid #eee; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; }
+        .copy-area { width: 100%; height: 80px; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; resize: none; background: #fafafa; }
+        .floor-tabs { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 5px; -webkit-overflow-scrolling: touch; }
+        .floor-tab { padding: 8px 16px; background: #eee; border-radius: 20px; white-space: nowrap; font-size: 14px; cursor: pointer; border: 2px solid transparent; }
+        .floor-tab.active { background: var(--primary-color); color: white; }
+        
+        .room-card { background: white; border-radius: var(--border-radius); padding: 15px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .room-title { font-weight: bold; margin-bottom: 10px; color: #666; border-bottom: 1px dashed #eee; padding-bottom: 8px; }
+        .student-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 10px; }
+        .stu-btn { padding: 12px 5px; background: #f0f4f8; border: 1px solid #e1e8ed; border-radius: 6px; font-size: 14px; text-align: center; cursor: pointer; transition: all 0.2s; word-break: break-all; line-height: 1.2;}
+        .stu-btn.checked { background: #2c3e50; color: white; border-color: #2c3e50; font-weight: bold; }
+
+        /* Toast提示 */
+        .toast { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 15px 25px; border-radius: 8px; z-index: 999; display: none; text-align: center; pointer-events: none;}
+    </style>
+</head>
+<body>
+
+    <div id="toast" class="toast"></div>
+
+    <!-- 1. 首页 -->
+    <div id="home-page" class="page active">
+        <h1 style="margin-bottom: 20px; color: #2c3e50;">🏠 寝室查寝系统</h1>
+        <button class="btn btn-primary home-btn" onclick="app.navTo('edit-page')">✏️ 编 辑</button>
+        <button class="btn btn-success home-btn" onclick="app.navTo('work-page')">📋 工 作</button>
+    </div>
+
+    <!-- 2. 编辑页 -->
+    <div id="edit-page" class="page">
+        <div class="header">
+            <div class="back-btn" onclick="app.checkSaveAndBack()">←</div>
+            <h2>数据编辑</h2>
+            <div style="min-width: 40px;"></div>
+        </div>
+        <div class="content">
+            <!-- 楼层管理 -->
+            <div class="edit-section">
+                <h3>1. 楼层管理</h3>
+                <div class="edit-row">
+                    <input type="text" id="new-floor-input" placeholder="输入楼层 (如: 8楼)">
+                    <button class="btn btn-primary" onclick="editor.addFloor()">添加</button>
+                </div>
+                <div id="floor-tags" class="tag-list"></div>
+            </div>
+
+            <!-- 寝室管理（已增加查询功能） -->
+            <div class="edit-section">
+                <h3>2. 寝室管理</h3>
+                <div class="edit-row">
+                    <select id="room-floor-select" onchange="editor.onRoomFloorChange()"><option value="">选择楼层</option></select>
+                    <button class="btn btn-outline btn-sm" onclick="editor.queryRooms()">🔍 查看</button>
+                </div>
+                <!-- 🔍 查询结果区 -->
+                <div id="room-query-result" class="query-result"></div>
+                
+                <div class="edit-row" style="margin-top:10px;">
+                    <input type="text" id="new-room-input" placeholder="寝室号 (如: 801)">
+                    <button class="btn btn-primary" onclick="editor.addRoom()">添加</button>
+                </div>
+                <div id="room-tags" class="tag-list"></div>
+            </div>
+
+            <!-- 学生管理（已增加查询功能） -->
+            <div class="edit-section">
+                <h3>3. 学生管理</h3>
+                <div class="edit-row">
+                    <select id="stu-floor-select" onchange="editor.updateStuRoomSelect()"><option value="">选择楼层</option></select>
+                    <select id="stu-room-select" onchange="editor.onStuRoomChange()"><option value="">选择寝室</option></select>
+                    <button class="btn btn-outline btn-sm" onclick="editor.queryStudents()">🔍 查看</button>
+                </div>
+                <!-- 🔍 查询结果区 -->
+                <div id="stu-query-result" class="query-result"></div>
+
+                <div class="edit-row" style="margin-top:10px;">
+                    <input type="text" id="new-stu-input" placeholder="学生姓名">
+                    <button class="btn btn-primary" onclick="editor.addStudent()">添加</button>
+                </div>
+                <div id="student-tags" class="tag-list"></div>
+            </div>
+        </div>
+        <div class="save-bar">
+            <button class="btn btn-success" style="width: 100%;" onclick="editor.saveData()">💾 保存所有修改</button>
+        </div>
+    </div>
+
+    <!-- 3. 工作页 -->
+    <div id="work-page" class="page">
+        <div class="header">
+            <div class="back-btn" onclick="app.navTo('home-page')">←</div>
+            <h2>查寝工作</h2>
+            <div style="min-width: 40px;"></div>
+        </div>
+        <div class="work-top">
+            <textarea id="copy-textarea" class="copy-area" placeholder="点击下方学生姓名，缺勤名单将自动追加到这里...&#10;长按此框可全选复制"></textarea>
+            <div class="floor-tabs" id="work-floor-tabs"></div>
+        </div>
+        <div class="content" id="work-content">
+            <div style="text-align: center; color: #999; margin-top: 50px;">请选择上方楼层标签</div>
+        </div>
+    </div>
+
+<script>
+/**
+ * ==========================================
+ * ⚠️ 初始化数据配置区
+ * ==========================================
+ */
+const INITIAL_DATA = [
+    { floor: "3楼", rooms: [
+        { number: "314", students: ["浦涵秋", "沙倩倩", "曹华雨"] },
+        { number: "317", students: ["盛宁月","王一凡"] },
+        { number: "324", students: ["李思源", "王可凡","赵俊屹"] }
+    ]},
+    { floor: "4楼", rooms: [
+        { number: "401男", students: ["黄佳树"] },
+        { number: "406女", students: ["芮楠婷"] },
+        { number: "409女", students: ["张完颜"] },
+        { number: "420男", students: ["戴如凡", "吴瑞", "徐建国"] },
+        { number: "421男", students: ["宛思行", "王宇恒", "曹宇凡"] },
+        { number: "422男", students: ["龚俊洋", "陈嘉维", "刘昊天"] },
+        { number: "423男", students: ["王乾宇", "朱广亚", "章峦昊"] },
+        { number: "424男", students: ["田润", "卢荣杰", "王思凯"] },
+        { number: "425男", students: ["程锐", "陈昊楠"] },
+        { number: "426男", students: ["张锦峰"] },
+        { number: "427男", students: ["张锦瑞"] },
+        { number: "428男", students: ["章勇", "张佳辉", "徐汪宁"] },
+        { number: "430男", students: ["郭旭升", "吴扬扬", "葛宪睿"] }
+    ]},
+    { floor: "7楼", rooms: [
+        { number: "701", students: ["徐江岳", "周智", "丁良坤"] },
+        { number: "703", students: ["黄卓凡", "刘思成"] },
+        { number: "707", students: ["李智", "孙嘉晨", "刘博", "车昊"] },
+        { number: "708", students: ["李富泉", "潘耀", "王宇"] },
+        { number: "710", students: ["汪文庆", "尹俊杰", "陈星"] },
+        { number: "712", students: ["陈诗文", "尹湛兮", "杨开泰"] },
+        { number: "713", students: ["王子豪", "邬克鹏", "沈靖尧"] },
+        { number: "714", students: ["王镒飞", "何亦舒", "高畅", "万智勇"] },
+        { number: "716", students: ["张宇轩", "楚子恒", "徐通", "周彬"] },
+        { number: "717", students: ["胡俊杰", "郭语诚", "刘士博", "童郅一"] },
+        { number: "718", students: ["王万隆", "杨佳乐", "王俊杰", "吴桐"] },
+        { number: "719", students: ["张振阳", "刘润东"] },
+        { number: "720", students: ["康博文", "胡宇涛"] },
+        { number: "721", students: ["郭子豪", "王润琦", "郁建威", "曹伟豪"] },
+        { number: "722", students: ["谭子豪", "王俊男", "虞锋涛", "侯晓晨"] },
+        { number: "724", students: ["张佳", "马作邦", "闫旭", "孙涛"] },
+        { number: "725", students: ["张政", "张俊杰", "蒋铮", "何翔宇"] },
+        { number: "726", students: ["陈绪豪", "于鸿飞", "王林苗", "杨勉"] },
+        { number: "727", students: ["殷晨雨", "陆琛康", "施昊", "汤政"] },
+        { number: "728", students: ["楚昭", "李翔宇"] },
+        { number: "729", students: ["张奇"] },
+        { number: "730", students: ["张一凡", "柏国伟", "孙大伟", "丁兆昕"] },
+        { number: "731", students: ["陈志平", "王富强", "魏亦凡", "郭放"] },
+        { number: "732", students: ["王棋锋", "孙纹", "伍健博", "黄俊杰"] }
+    ]},
+    { floor: "8楼", rooms: [
+        { number: "802", students: ["汪祠栋", "张文朴", "张家诚"] },
+        { number: "803", students: ["方少坤", "张杰", "余泳波"] },
+        { number: "804", students: ["张开颜", "柏未国", "胡征宇"] },
+        { number: "805", students: ["王凯帆", "倪卓行", "唐润泽", "高劢强"] },
+        { number: "806", students: ["杨森", "张庆玄", "薛畅"] },
+        { number: "808", students: ["缪言诚", "王壹鸣", "谢谦"] },
+        { number: "809", students: ["蒋鑫旭", "蒋世杰", "许浩然"] },
+        { number: "810", students: ["孙郅宜", "阮振东", "肖童"] },
+        { number: "811", students: ["艾佳伟", "陈赟", "聂传鑫", "程鹏文"] },
+        { number: "812", students: ["董其昌", "赵弘哲", "杨刚"] },
+        { number: "813", students: ["江宇", "胡逸凡", "吴悠", "龚耀"] },
+        { number: "888/814", students: ["黄天佑", "李骏杰", "戴文杰", "何昊"] },
+        { number: "815", students: ["冯成志", "王博", "秦书鸿", "傅政杰"] },
+        { number: "816", students: ["陈泽宇", "常明楷", "林锦心", "唐治伟"] },
+        { number: "817", students: ["石皓天", "邵俊茗", "周正林", "孙文武"] },
+        { number: "818", students: ["赵佳乐", "黄酉健", "丁双健", "汪鹏"] },
+        { number: "819", students: ["彭昕泽", "付翔天"] },
+        { number: "820", students: ["陈泽瑜", "谢小波"] },
+        { number: "821", students: ["石钊", "方文豪", "陈勇俊", "许辉川"] },
+        { number: "822", students: ["范家男", "姚闯", "李浩田", "袁一恒"] },
+        { number: "823", students: ["郑傲天", "刘明威", "丁健", "郭扬"] },
+        { number: "824", students: ["叶俊飞", "张睿诚", "金文利", "束永康"] },
+        { number: "825", students: ["祖质斌", "杨宇翔", "张天宇", "王旭瑞"] },
+        { number: "826", students: ["吴泽翔", "黄玉青", "周海生", "张金宝"] },
+        { number: "827", students: ["周碧涛", "潘文杰", "关铉柘", "王跃飞"] },
+        { number: "828", students: ["叶子恒", "费乐仁"] },
+        { number: "829", students: ["宫钰澔", "夏子凌"] },
+        { number: "830", students: ["徐瑞", "赵长闰", "吕光庆", "李晨晨"] },
+        { number: "831", students: ["沈稷坤", "汪竞林"] },
+        { number: "832", students: ["王迪", "齐雨飞"] }
+    ]},
+    { floor: "9楼", rooms: [
+        { number: "902", students: ["徐瑞琳", "卢悦茹", "刘雅婷"] },
+        { number: "903", students: ["刘思雨", "洪迪"] },
+        { number: "904/985", students: ["俞永果", "郑嘉琪", "刘烨"] },
+        { number: "905", students: ["吉辰佳美", "桂玉炯", "王紫妍", "马菲彗"] },
+        { number: "906", students: ["罗姝颖", "方思颖", "沈后鑫"] },
+        { number: "907", students: ["施香香", "丁静仪", "任雨晴"] },
+        { number: "908", students: ["贾凡", "郑旭晨", "解净冉"] },
+        { number: "909", students: ["沈榕", "杨陆羽", "姜思诺"] },
+        { number: "910", students: ["葛欣玥", "蒋梦萍", "金宇"] },
+        { number: "911", students: ["李明珊", "王凡", "康星雨", "张婉婷"] },
+        { number: "912", students: ["芮琼宇", "张昱吉", "盛云"] },
+        { number: "913", students: ["吕海萌", "李铁蕾", "王宇奇", "张妍"] },
+        { number: "914/999", students: ["项雨", "阚雨婷", "周怡", "王明月"] },
+        { number: "915", students: ["张曼婷", "周洁", "孙梦茹", "张欣悦"] },
+        { number: "916", students: ["陈娟", "郑文茜", "陈嘉萌","赵梦莹"] },
+        { number: "917", students: ["徐睿思", "江言", "吴欣琳","王维秩"] },
+        { number: "918", students: ["任紫嫣", "黄奕娴", "黄娇", "汪卓然"] },
+        { number: "919", students: ["唐心怡", "刘睿瑶"] },
+        { number: "920", students: ["张萱", "周瑞璇"] },
+        { number: "921", students: ["谢沄", "陈雨熏", "夏子涵", "王欣彤"] },
+        { number: "922", students: ["崔筱晨", "阮浚恒", "胡嘉仪", "张轻扬"] },
+        { number: "923", students: ["李思淼", "齐安琦", "王圣依", "徐新闻"] },
+        { number: "924/966", students: ["占雨欣", "张可馨", "潘睿涵", "丁一铭"] },
+        { number: "925", students: ["刘芬芬", "郭晗", "卢若晨"] },
+        { number: "926", students: ["吴鹜", "黄艳庭", "张静"] },
+        { number: "927", students: ["陈文君", "吴竹雅", "迟文欣", "吴媛媛"] },
+        { number: "928", students: ["朱心语", "杨紫"] },
+        { number: "929", students: ["舒源", "洪可欣"] },
+        { number: "930", students: ["阮自茹", "疏蓝", "田良", "龙真秀"] },
+        { number: "931", students: ["贺悦", "马语慧", "陈培培", "陈果"] },
+        { number: "933", students: ["解雅妮"] }
+    ]},
+    { floor: "10楼", rooms: [
+        { number: "1033", students: ["施旋"] }
+    ]},
+    { floor: "11楼", rooms: [
+        { number: "1102男", students: ["李思贤", "吴靖"] },
+        { number: "1106男", students: ["曹瀚文", "刘浩博"] },
+        { number: "1107男", students: ["杨喆", "任思屹"] },
+        { number: "1111男", students: ["尹浩宇"] },
+        { number: "1112男", students: ["刘煜坤"] },
+        { number: "1114男", students: ["谭鑫", "汤硕", "沈绍卓"] },
+        { number: "1115男", students: ["刘灿", "王泽坤", "闻翔", "王硕"] },
+        { number: "1116男", students: ["张俊哲", "程浩宇", "丁宇", "李俊恺"] },
+        { number: "1117男", students: ["王张驰", "鲍栋澜", "张智阳", "王锐"] },
+        { number: "1118男", students: ["钟毅", "谢雨航", "司有旭", "侯家涛"] },
+        { number: "1119女", students: ["余小蝶"] },
+        { number: "1120男", students: ["马宇", "郭思楠", "马锦涛", "黄泽文"] },
+        { number: "1121男", students: ["胡益玮", "汪子强", "罗宇鹏", "黄德睿"] },
+        { number: "1122男", students: ["刘峻吾", "潘子陶", "阮乐天", "吕仪斌"] },
+        { number: "1123男", students: ["刘成名", "杨旭东", "李晨风", "黄新杰"] },
+        { number: "1124男", students: ["吴宇哲", "何荣", "刘煜鑫", "李梓铜"] },
+        { number: "1125男", students: ["王星宇", "栗张尧", "朱仁周", "尹宗翰"] },
+        { number: "1126男", students: ["柯岩"] },
+        { number: "1127男", students: ["李志远", "黄嘉豪", "王俊凯", "陈子瀚"] },
+        { number: "1128男", students: ["尹文轩", "吴崇宇", "徐琰东"] },
+        { number: "1129男", students: ["夏晨峰"] },
+        { number: "1130男", students: ["王志远", "梁宜昙", "晏子豪", "李天天"] },
+        { number: "1131男", students: ["郑鹏", "秦鑫", "孙列强", "金鑫"] },
+        { number: "1133男", students: ["刘恩铭"] },
+        { number: "1104女", students: ["孟晓璇", "李沁妍"] },
+        { number: "1101女", students: ["刘梓萌", "施梦婷"] },
+        { number: "1105女", students: ["王子晴"] }
+    ]}
+];
+
+/**
+ * ==========================================
+ * 核心逻辑
+ * ==========================================
+ */
+const STORAGE_KEY = 'DORM_CHECK_DATA_V4';
+
+const Utils = {
+    showToast: (msg, duration = 1500) => {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.style.display = 'block';
+        setTimeout(() => t.style.display = 'none', duration);
+    },
+    confirm: (msg) => window.confirm(msg),
+    deepClone: (obj) => JSON.parse(JSON.stringify(obj))
+};
+
+const DataManager = {
+    data: null,
+    isDirty: false,
+
+    init() {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+            try { this.data = JSON.parse(stored); } catch(e) { this.data = null; }
+        }
+        if (!this.data || !Array.isArray(this.data)) {
+            this.data = Utils.deepClone(INITIAL_DATA);
+            this.save();
+        }
+    },
+
+    save() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data));
+        this.isDirty = false;
+        Utils.showToast("✅ 保存成功");
+    },
+
+    getFloors() { return this.data.map(f => f.floor); },
+    
+    getRooms(floorName) {
+        const f = this.data.find(x => x.floor === floorName);
+        return f ? f.rooms : [];
+    },
+
+    addFloor(name) {
+        if (!name || this.data.some(f => f.floor === name)) return false;
+        this.data.push({ floor: name, rooms: [] });
+        this.data.sort((a,b) => a.floor.localeCompare(b.floor, 'zh-Hans-CN'));
+        this.isDirty = true;
+        return true;
+    },
+
+    deleteFloor(name) {
+        this.data = this.data.filter(f => f.floor !== name);
+        this.isDirty = true;
+    },
+
+    addRoom(floorName, roomNum) {
+        const f = this.data.find(x => x.floor === floorName);
+        if (!f || !roomNum) return false;
+        if (f.rooms.some(r => r.number === roomNum)) return false;
+        f.rooms.push({ number: roomNum, students: [] });
+        f.rooms.sort((a,b) => a.number.localeCompare(b.number, 'zh-Hans-CN', {numeric: true}));
+        this.isDirty = true;
+        return true;
+    },
+
+    deleteRoom(floorName, roomNum) {
+        const f = this.data.find(x => x.floor === floorName);
+        if (f) {
+            f.rooms = f.rooms.filter(r => r.number !== roomNum);
+            this.isDirty = true;
+        }
+    },
+
+    addStudent(floorName, roomNum, stuName) {
+        const f = this.data.find(x => x.floor === floorName);
+        if (!f) return false;
+        const r = f.rooms.find(x => x.number === roomNum);
+        if (!r || !stuName) return false;
+        if (r.students.includes(stuName)) return false;
+        r.students.push(stuName);
+        this.isDirty = true;
+        return true;
+    },
+
+    deleteStudent(floorName, roomNum, stuName) {
+        const f = this.data.find(x => x.floor === floorName);
+        if (!f) return;
+        const r = f.rooms.find(x => x.number === roomNum);
+        if (r) {
+            r.students = r.students.filter(s => s !== stuName);
+            this.isDirty = true;
+        }
+    }
+};
+
+const App = {
+    currentPage: 'home-page',
+
+    navTo(pageId) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById(pageId).classList.add('active');
+        this.currentPage = pageId;
+        if (pageId === 'edit-page') EditorUI.render();
+        if (pageId === 'work-page') WorkUI.init();
+    },
+
+    checkSaveAndBack() {
+        if (DataManager.isDirty) {
+            if (Utils.confirm("⚠️ 有未保存的修改，是否放弃并返回？\n\n(点击取消可留在当前页继续编辑)")) {
+                DataManager.isDirty = false;
+                this.navTo('home-page');
+            }
+        } else {
+            this.navTo('home-page');
+        }
+    }
+};
+
+// 编辑页 UI 逻辑
+const EditorUI = {
+    render() {
+        this.renderFloorTags();
+        this.updateSelects();
+        this.renderRoomTags();
+        this.renderStudentTags();
+        // 进入编辑页时隐藏查询结果
+        this.hideQuery('room-query-result');
+        this.hideQuery('stu-query-result');
+    },
+
+    updateSelects() {
+        const floors = DataManager.getFloors();
+        const opts = '<option value="">选择楼层</option>' + floors.map(f => `<option value="${f}">${f}</option>`).join('');
+        document.getElementById('room-floor-select').innerHTML = opts;
+        document.getElementById('stu-floor-select').innerHTML = opts;
+        document.getElementById('stu-room-select').innerHTML = '<option value="">请先选择楼层</option>';
+    },
+
+    updateStuRoomSelect() {
+        const floor = document.getElementById('stu-floor-select').value;
+        const sel = document.getElementById('stu-room-select');
+        if (!floor) { 
+            sel.innerHTML = '<option value="">请先选择楼层</option>'; 
+            this.hideQuery('stu-query-result');
+            return; 
+        }
+        const rooms = DataManager.getRooms(floor);
+        sel.innerHTML = '<option value="">选择寝室</option>' + rooms.map(r => `<option value="${r.number}">${r.number}</option>`).join('');
+        this.renderStudentTags();
+        this.hideQuery('stu-query-result');
+    },
+
+    // 🔍 新增：切换楼层时隐藏寝室查询结果
+    onRoomFloorChange() {
+        this.hideQuery('room-query-result');
+        this.renderRoomTags();
+    },
+
+    // 🔍 新增：切换寝室时隐藏学生查询结果
+    onStuRoomChange() {
+        this.hideQuery('stu-query-result');
+        this.renderStudentTags();
+    },
+
+    // 🔍 新增：查询当前楼层下的所有寝室
+    queryRooms() {
+        const floor = document.getElementById('room-floor-select').value;
+        const container = document.getElementById('room-query-result');
+        if (!floor) {
+            Utils.showToast("⚠️ 请先选择楼层");
+            return;
+        }
+        const rooms = DataManager.getRooms(floor);
+        if (rooms.length === 0) {
+            container.innerHTML = `<div class="query-title">📋 ${floor} 的寝室列表</div><div class="query-empty">暂无寝室数据</div>`;
+        } else {
+            container.innerHTML = `<div class="query-title">📋 ${floor} 共有 ${rooms.length} 个寝室</div>
+                <div class="query-items">${rooms.map(r => `<span class="query-item">${r.number}</span>`).join('')}</div>`;
+        }
+        container.classList.add('show');
+    },
+
+    // 🔍 新增：查询当前寝室下的所有学生
+    queryStudents() {
+        const floor = document.getElementById('stu-floor-select').value;
+        const room = document.getElementById('stu-room-select').value;
+        const container = document.getElementById('stu-query-result');
+        if (!floor || !room) {
+            Utils.showToast("⚠️ 请先选择楼层和寝室");
+            return;
+        }
+        const f = DataManager.data.find(x => x.floor === floor);
+        const r = f?.rooms.find(x => x.number === room);
+        const students = r?.students || [];
+        if (students.length === 0) {
+            container.innerHTML = `<div class="query-title">👥 ${room} 的学生列表</div><div class="query-empty">暂无学生数据</div>`;
+        } else {
+            container.innerHTML = `<div class="query-title">👥 ${room} 共有 ${students.length} 名学生</div>
+                <div class="query-items">${students.map(s => `<span class="query-item">${s}</span>`).join('')}</div>`;
+        }
+        container.classList.add('show');
+    },
+
+    hideQuery(id) {
+        const el = document.getElementById(id);
+        el.classList.remove('show');
+        el.innerHTML = '';
+    },
+
+    renderFloorTags() {
+        const container = document.getElementById('floor-tags');
+        container.innerHTML = DataManager.getFloors().map(f => 
+            `<div class="tag">${f}<span class="del-icon" onclick="EditorUI.delFloor('${f}')">×</span></div>`
+        ).join('');
+    },
+
+    renderRoomTags() {
+        const floor = document.getElementById('room-floor-select').value;
+        const container = document.getElementById('room-tags');
+        if (!floor) { container.innerHTML = '<span style="color:#999;font-size:12px;">请先在上方选择楼层以查看/删除寝室</span>'; return; }
+        const rooms = DataManager.getRooms(floor);
+        container.innerHTML = rooms.length ? rooms.map(r => 
+            `<div class="tag">${r.number}<span class="del-icon" onclick="EditorUI.delRoom('${floor}','${r.number}')">×</span></div>`
+        ).join('') : '<span style="color:#999;font-size:12px;">该楼层暂无寝室</span>';
+    },
+
+    renderStudentTags() {
+        const floor = document.getElementById('stu-floor-select').value;
+        const room = document.getElementById('stu-room-select').value;
+        const container = document.getElementById('student-tags');
+        if (!floor || !room) { container.innerHTML = '<span style="color:#999;font-size:12px;">请选择楼层和寝室以查看/删除学生</span>'; return; }
+        const f = DataManager.data.find(x => x.floor === floor);
+        const r = f?.rooms.find(x => x.number === room);
+        const students = r?.students || [];
+        container.innerHTML = students.length ? students.map(s => 
+            `<div class="tag">${s}<span class="del-icon" onclick="EditorUI.delStudent('${floor}','${room}','${s.replace(/'/g,"\\'")}')">×</span></div>`
+        ).join('') : '<span style="color:#999;font-size:12px;">该寝室暂无学生</span>';
+    },
+
+    addFloor() {
+        const input = document.getElementById('new-floor-input');
+        if (DataManager.addFloor(input.value.trim())) {
+            input.value = '';
+            this.render();
+        } else Utils.showToast("❌ 楼层为空或已存在");
+    },
+
+    addRoom() {
+        const floorSel = document.getElementById('room-floor-select');
+        const input = document.getElementById('new-room-input');
+        if (DataManager.addRoom(floorSel.value, input.value.trim())) {
+            input.value = '';
+            this.renderRoomTags();
+            // 添加成功后自动刷新查询结果（如果当前正在查看）
+            if (document.getElementById('room-query-result').classList.contains('show')) {
+                this.queryRooms();
+            }
+        } else Utils.showToast("❌ 请选择楼层或寝室号已存在");
+    },
+
+    addStudent() {
+        const floorSel = document.getElementById('stu-floor-select');
+        const roomSel = document.getElementById('stu-room-select');
+        const input = document.getElementById('new-stu-input');
+        if (DataManager.addStudent(floorSel.value, roomSel.value, input.value.trim())) {
+            input.value = '';
+            this.renderStudentTags();
+            // 添加成功后自动刷新查询结果
+            if (document.getElementById('stu-query-result').classList.contains('show')) {
+                this.queryStudents();
+            }
+        } else Utils.showToast("❌ 请完善信息或姓名已存在");
+    },
+
+    delFloor(name) {
+        if (Utils.confirm(`确认删除【${name}】及其所有寝室和学生数据？`)) {
+            DataManager.deleteFloor(name);
+            this.render();
+        }
+    },
+
+    delRoom(floor, room) {
+        if (Utils.confirm(`确认删除寝室【${room}】及其所有学生？`)) {
+            DataManager.deleteRoom(floor, room);
+            this.renderRoomTags();
+            if (document.getElementById('room-query-result').classList.contains('show')) {
+                this.queryRooms();
+            }
+        }
+    },
+
+    delStudent(floor, room, name) {
+        if (Utils.confirm(`确认从 ${room} 删除学生【${name}】？`)) {
+            DataManager.deleteStudent(floor, room, name);
+            this.renderStudentTags();
+            if (document.getElementById('stu-query-result').classList.contains('show')) {
+                this.queryStudents();
+            }
+        }
+    },
+
+    saveData() {
+        DataManager.save();
+    }
+};
+
+// 工作页 UI 逻辑
+const WorkUI = {
+    currentFloor: null,
+
+    init() {
+        const tabs = document.getElementById('work-floor-tabs');
+        const floors = DataManager.getFloors();
+        tabs.innerHTML = floors.map(f => 
+            `<div class="floor-tab" onclick="WorkUI.selectFloor('${f}')">${f}</div>`
+        ).join('');
+        if (floors.length > 0) this.selectFloor(floors[0]);
+        else document.getElementById('work-content').innerHTML = '<div style="text-align:center;color:#999;margin-top:50px;">暂无数据，请先去编辑页添加</div>';
+    },
+
+    selectFloor(floorName) {
+        this.currentFloor = floorName;
+        document.querySelectorAll('.floor-tab').forEach(t => {
+            t.classList.toggle('active', t.textContent === floorName);
+        });
+        this.renderRooms();
+    },
+
+    renderRooms() {
+        const container = document.getElementById('work-content');
+        const rooms = DataManager.getRooms(this.currentFloor);
+        if (!rooms.length) {
+            container.innerHTML = '<div style="text-align:center;color:#999;margin-top:30px;">该楼层暂无寝室数据</div>';
+            return;
+        }
+        container.innerHTML = rooms.map(room => `
+            <div class="room-card">
+                <div class="room-title">🚪 ${room.number}</div>
+                <div class="student-grid">
+                    ${room.students.map(s => `
+                        <div class="stu-btn" onclick="WorkUI.toggleStudent(this, '${s.replace(/'/g,"\\'")}')">${s}</div>
+                    `).join('')}
+                </div>
+            </div>
+        `).join('');
+    },
+
+    toggleStudent(el, name) {
+        const textarea = document.getElementById('copy-textarea');
+        const isChecked = el.classList.toggle('checked');
+        if (isChecked) {
+            const current = textarea.value;
+            const separator = current && !current.endsWith(',') && !current.endsWith('，') ? ',' : '';
+            textarea.value = current + separator + name;
+        } else {
+            let val = textarea.value;
+            val = val.replace(new RegExp(name + '[,，]?', 'g'), '');
+            val = val.replace(/^[,，]/, '').replace(/[,，]$/, '');
+            textarea.value = val;
+        }
+        textarea.scrollTop = textarea.scrollHeight;
+    }
+};
+
+window.app = App;
+window.editor = EditorUI;
+DataManager.init();
+</script>
+</body>
+</html>
